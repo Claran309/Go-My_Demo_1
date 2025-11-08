@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 
 	"GoGin/util"
@@ -15,20 +14,14 @@ func JWTAuthorizationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authorizationHeader := c.GetHeader("Authorization")
 		if authorizationHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status":  http.StatusUnauthorized,
-				"message": "Authorization header is empty",
-			})
+			util.Error(c, 401, "Authorization header is empty")
 			c.Abort()
 			return
 		}
 
 		parts := strings.SplitN(authorizationHeader, " ", 2)
 		if len(parts) != 2 && parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status":  http.StatusUnauthorized,
-				"message": "Authorization header is invalid",
-			})
+			util.Error(c, 401, "Authorization header is invalid")
 			c.Abort()
 			return
 		}
@@ -38,25 +31,18 @@ func JWTAuthorizationMiddleware() gin.HandlerFunc {
 		token, err := util.ValidateToken(tokenString)
 		if err != nil {
 			if errors.Is(err, jwt.ErrTokenExpired) {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"status":  http.StatusUnauthorized,
-					"message": "Token is expired",
-				})
+				util.Error(c, 401, "Token is expired")
+				c.Abort()
+				return
 			}
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status":  http.StatusUnauthorized,
-				"message": "Token is invalid",
-			})
+			util.Error(c, 401, "Token is invalid")
 			c.Abort()
 			return
 		}
 
 		claims, err := util.ExtractClaims(token)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  http.StatusInternalServerError,
-				"message": "Failed to extract claims",
-			})
+			util.Error(c, 500, "Failed to extract claims")
 			c.Abort()
 			return
 		}

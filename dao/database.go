@@ -46,3 +46,11 @@ func EmailToUsername(email string) string { // 由邮箱查询用户名
 func CheckID(username string) string {
 	return database[username].UserID
 }
+
+func UsernameToEmail(username string) string {
+	return database[username].Email
+}
+
+func CheckUserID(username string) string {
+	return database[username].UserID
+}
