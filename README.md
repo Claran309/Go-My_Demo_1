@@ -1,13 +1,29 @@
 ## [My Blog](https://www.claran-blog.work/)
 
 ## Demo：用户注册与登录系统
-自学过程中搓的一个小Demo
+自学过程中搓的一个小Demo，一个基于 Go 语言 Gin 框架开发的用户注册登录系统，实现了完整的 JWT 认证流程和数据库持久化存储
 
-本地端口监听，map代替数据库
+技术力低，大佬勿喷qwq
 
-知识点：Gin，http，JWT
+## 技术栈
+### 后端框架
+- **Gin** - 高性能 Go Web 框架
+- **GORM** - ORM 库，支持数据库操作
 
-技术力低，大佬勿喷
+### 数据库
+- **MySQL** - 关系型数据库，数据持久化存储
+
+### 认证授权
+- **JWT** - JSON Web Tokens，无状态认证机制、
+
+### 架构设计
+- 面向接口编程
+- 依赖注入
+- 分层架构（Handler → Service → Repository）
+
+### 开发工具
+- Go Modules - 依赖管理
+- 内置测试支持
 
 ****
 
