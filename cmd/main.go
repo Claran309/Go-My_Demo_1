@@ -14,7 +14,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-	//========================初始化===========================
+	//======================================初始化====================================================
 	// 数据层依赖
 	// userRepo := memory.NewMemoryUserRepository() 内存记忆储存信息
 	db, err := mysql.InitMysql(cfg)
@@ -39,7 +39,7 @@ func main() {
 
 	r := gin.Default()
 
-	//=====================注册和登录路由========================
+	//=======================================注册和登录路由=============================================
 	user := r.Group("/user")
 	user.POST("/register", userHandler.Register)
 	user.POST("/login", userHandler.Login)
@@ -60,7 +60,7 @@ func main() {
 	//新增课程 (admin)
 	course.POST("/add/course", jwtMiddleware.JWTAuthentication(), jwtMiddleware.JWTAuthorization(), courseHandler.AddCourse)
 
-	//=====================to-do-list相关路由===================
+	//=======================================to-do-list相关路由==========================================
 	todo := r.Group("/to-do")
 	todo.Use(jwtMiddleware.JWTAuthentication())
 	//新增to-do事项
