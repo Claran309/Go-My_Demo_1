@@ -2,24 +2,31 @@ package mysql
 
 import (
 	"GoGin/api/dao"
+	"GoGin/api/dao/cache"
 	"GoGin/internal/model"
 	"errors"
+	"fmt"
 	"log"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 type mysqlUserRepo struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache *cache.RedisClient
 }
 
-func NewMysqlUserRepo(db *gorm.DB) dao.UserRepository {
+func NewMysqlUserRepo(db *gorm.DB, cache *cache.RedisClient) dao.UserRepository {
 	err := db.AutoMigrate(&model.User{})
 	if err != nil {
 		log.Fatal("Failed to migrate user table:", err)
 	}
 
-	return &mysqlUserRepo{db: db}
+	return &mysqlUserRepo{
+		db:    db,
+		cache: cache,
+	}
 }
 
 func (repo *mysqlUserRepo) AddUser(user *model.User) error {
@@ -45,33 +52,157 @@ func (repo *mysqlUserRepo) AddUser(user *model.User) error {
 	if err.Error != nil {
 		return err.Error
 	}
+	//写入缓存
+	if repo.cache != nil {
+		userCacheKey := fmt.Sprintf("user:id:%d", user.UserID)
+		err := repo.cache.Set(userCacheKey, user, repo.cache.RandExp(5*time.Minute))
+		if err != nil {
+			return errors.New("set cache failed")
+		}
+
+		usernameCacheKey := fmt.Sprintf("user:username:%s", user.Username)
+		err = repo.cache.Set(usernameCacheKey, user, repo.cache.RandExp(5*time.Minute))
+		if err != nil {
+			return errors.New("set cache failed")
+		}
+
+		emailCacheKey := fmt.Sprintf("user:email:%s", user.Email)
+		err = repo.cache.Set(emailCacheKey, user, repo.cache.RandExp(5*time.Minute))
+		if err != nil {
+			return errors.New("set cache failed")
+		}
+	}
 
 	return nil
 }
 
 func (repo *mysqlUserRepo) SelectByUsername(username string) (*model.User, error) {
-	var user model.User
+	//尝试访问缓存
+	if repo.cache == nil {
+		key := fmt.Sprintf("user:username:%s", username)
+		var user model.User
+		if err := repo.cache.Get(key, &user); err != nil {
+			return nil, errors.New("get cache failed")
+		}
+	}
 
+	//缓存未命中，查询数据库
+	var user model.User
 	err := repo.db.Where("username = ?", username).First(&user).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			//缓存空值防止缓存穿透
+			if repo.cache != nil {
+				key := fmt.Sprintf("user:username:%s", username)
+				fakeUser := model.User{}
+				err := repo.cache.Set(key, fakeUser, repo.cache.RandExp(5*time.Minute))
+				if err != nil {
+					return nil, errors.New("set cache failed")
+				}
+			}
+			return nil, errors.New("username select failed")
+		}
 		return nil, errors.New("username select failed")
 	}
 
+	//写入缓存
+	if repo.cache != nil {
+		//分布式锁
+		lockKey := fmt.Sprintf("lock:user:username:%s", user.Username)
+		if suc, _ := repo.cache.Lock(lockKey, 10*time.Second); suc {
+			defer repo.cache.Unlock(lockKey)
+
+			userCacheKey := fmt.Sprintf("user:id:%d", user.UserID)
+			err := repo.cache.Set(userCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+
+			usernameCacheKey := fmt.Sprintf("user:username:%s", user.Username)
+			err = repo.cache.Set(usernameCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+
+			emailCacheKey := fmt.Sprintf("user:email:%s", user.Email)
+			err = repo.cache.Set(emailCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+		}
+	}
 	return &user, nil
 }
 
 func (repo *mysqlUserRepo) SelectByEmail(email string) (*model.User, error) {
-	var user model.User
+	// 缓存
+	if repo.cache != nil {
+		cacheKey := fmt.Sprintf("user:email:%s", email)
+		var user model.User
+		if err := repo.cache.Get(cacheKey, &user); err == nil {
+			return &user, nil
+		}
+	}
 
+	// 数据库
+	var user model.User
 	err := repo.db.Where("email = ?", email).First(&user).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 防止缓存穿透
+			if repo.cache != nil {
+				cacheKey := fmt.Sprintf("user:email:%s", email)
+				emptyUser := struct{}{}
+				err := repo.cache.Set(cacheKey, emptyUser, 1*time.Minute)
+				if err != nil {
+					return nil, errors.New("set cache failed")
+				}
+			}
+			return nil, errors.New("email select failed")
+		}
 		return nil, errors.New("email select failed")
 	}
 
+	//写入缓存
+	if repo.cache != nil {
+		// 分布式锁
+		lockKey := fmt.Sprintf("lock:user:email:%s", email)
+		if success, _ := repo.cache.Lock(lockKey, 10*time.Second); success {
+			defer repo.cache.Unlock(lockKey)
+
+			userCacheKey := fmt.Sprintf("user:id:%d", user.UserID)
+			err := repo.cache.Set(userCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+
+			usernameCacheKey := fmt.Sprintf("user:username:%s", user.Username)
+			err = repo.cache.Set(usernameCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+
+			emailCacheKey := fmt.Sprintf("user:email:%s", user.Email)
+			err = repo.cache.Set(emailCacheKey, &user, repo.cache.RandExp(5*time.Minute))
+			if err != nil {
+				return nil, errors.New("set cache failed")
+			}
+		}
+	}
 	return &user, nil
 }
 
 func (repo *mysqlUserRepo) Exists(username, email string) bool {
+	// 缓存
+	if repo.cache != nil {
+		cacheKey := fmt.Sprintf("user:username:%s", username)
+		var user model.User
+		if err := repo.cache.Get(cacheKey, &user); err == nil {
+			return user.Email == email
+		}
+	}
+
+	//数据库
 	var count int64
 	repo.db.Where("username = ? AND email = ?", username, email).Count(&count)
 	return count > 0

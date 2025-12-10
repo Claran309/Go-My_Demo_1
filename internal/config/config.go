@@ -8,6 +8,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
+}
+
 type Config struct {
 	// jwt
 	JWTSecret      string
@@ -16,6 +22,9 @@ type Config struct {
 
 	// mysql
 	DSN string
+
+	//redis
+	Redis RedisConfig
 }
 
 func LoadConfig() *Config {
@@ -28,6 +37,11 @@ func LoadConfig() *Config {
 		JWTIssuer:      getEnv("JWT_ISSUER", ""),
 		JWTExpireHours: getEnvInt("JWT_EXPIRATION_HOURS", 24),
 		DSN:            getEnv("DB_DSN", ""),
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvInt("REDIS_DB", 0),
+		},
 	}
 }
 

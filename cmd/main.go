@@ -1,6 +1,7 @@
 package main
 
 import (
+	"GoGin/api/dao/cache"
 	"GoGin/api/dao/mysql"
 	handlers2 "GoGin/api/handlers"
 	"GoGin/api/services"
@@ -16,14 +17,31 @@ func main() {
 	cfg := config.LoadConfig()
 	//======================================初始化====================================================
 	// 数据层依赖
+
 	// userRepo := memory.NewMemoryUserRepository() 内存记忆储存信息
+
+	// MySQL
 	db, err := mysql.InitMysql(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	userRepo := mysql.NewMysqlUserRepo(db)
-	courseRepo := mysql.NewMysqlCourseRepo(db)
-	todoRepo := mysql.NewMysqlTodoRepo(db)
+
+	// Redis
+	var redisClient cache.Cache
+	if cfg.Redis.Addr != "" {
+		redisClient = cache.NewRedisClient(
+			cfg.Redis.Addr,
+			cfg.Redis.Password,
+			cfg.Redis.DB,
+		)
+	} else {
+		log.Println("Redis配置为空，跳过缓存初始化")
+	}
+
+	// dao
+	userRepo := mysql.NewMysqlUserRepo(db, redisClient.(*cache.RedisClient))
+	courseRepo := mysql.NewMysqlCourseRepo(db, redisClient.(*cache.RedisClient))
+	todoRepo := mysql.NewMysqlTodoRepo(db, redisClient.(*cache.RedisClient))
 	// JWT工具
 	jwtUtil := jwt_util.NewJWTUtil(cfg)
 	// 业务逻辑层依赖
@@ -46,7 +64,7 @@ func main() {
 	user.POST("/refresh", userHandler.Refresh)
 	user.GET("/info", jwtMiddleware.JWTAuthentication(), userHandler.InfoHandler)
 
-	//=====================课程相关路由==========================
+	//========================================课程相关路由==============================================
 	course := r.Group("/course")
 	course.Use(jwtMiddleware.JWTAuthentication())
 	//获取课程列表
