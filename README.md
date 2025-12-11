@@ -1,4 +1,4 @@
-# Demo：用户注册与登录 + 选课平台 + To-do List
+# ClaranDemo
 
 ## 简介
 
