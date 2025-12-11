@@ -1,4 +1,3 @@
-# 如果您的 ClaranDemo 需要构建，这里提供一个示例 Dockerfile
 FROM golang:1.20-alpine AS builder
 
 WORKDIR /app
