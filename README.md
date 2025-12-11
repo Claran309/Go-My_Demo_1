@@ -19,6 +19,41 @@
     - 待办事项修改
 - Docker容器化部署
 
+## Docker
+```bash
+# 创建 .env 文件
+cp .env.example .env
+# 编辑 .env 文件
+
+# 启动所有服务
+docker-compose up -d
+
+# 查看运行状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f web
+docker-compose logs -f mysql
+docker-compose logs -f redis
+
+# 停止服务
+docker-compose down
+
+# 停止并删除数据卷
+docker-compose down -v
+
+# 检查容器状态
+docker ps
+
+# 应该看到：
+# MySQL
+# Redis
+# ClaranDemo
+
+# 测试连接
+curl http://localhost:8080/health
+```
+
 ## 技术栈
 ### 后端框架
 - **Gin** - 高性能Go Web框架
